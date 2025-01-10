@@ -18,7 +18,7 @@ import (
 )
 
 // SetupFFMPEGStreaming configures a camera to use ffmpeg to stream video.
-// The returned handle can be used to interact with the camera (start, stop, take snapshot…).
+// The returned handle can be used to interact with the camera (start, stop…).
 func SetupFFMPEGStreaming(cam *accessory.Camera, cfg ffmpeg.Config) ffmpeg.FFMPEG {
 	ff := ffmpeg.New(cfg)
 

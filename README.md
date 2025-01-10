@@ -1,158 +1,21 @@
 # hkcam
 
-`hkcam` is an open-source implementation of an HomeKit IP camera. 
-It uses `ffmpeg` to access the camera stream and publishes the stream to HomeKit using [hap](https://github.com/brutella/hap).
-The camera stream can be viewed in a HomeKit app. For example my [Home+](https://hochgatterer.me/home) app works perfectly with `hkcam`.
-
-<img alt="Camera Stream" src="_img/home-app-camera.jpeg?raw=true" width="400" />
+`hkcam-minimal` is a minimal version of `hkcam` that can run directly on ipcameras.
+It uses `rtsp-server` to access the camera stream and publishes the stream to HomeKit.(To be done)
 
 ## Features
 
 - Live streaming via HomeKit
-- Works with any HomeKit app (ex. [Home+](https://hochgatterer.me/home))
-- [Multistream Support](#multistream)
-- [Persistent Snapshots](#persistent-snapshots)
-- [Built-in Web Interface](#web-interface)
-- Runs on multiple platforms (Raspberry Pi OS, macOS)
+- Runs on ip cameras
 
 ## Get Started
 
 *hkcam uses Go modules and therefore requires Go 1.11 or higher.*
 
-### Mac
 
-The fastest way to get started is to
+### Build
 
-1. download the project on a Mac with a built-in iSight camera
-```sh
-git clone https://github.com/brutella/hkcam && cd hkcam
-```
-2. build and run `cmd/hkcam/main.go` by running `task hkcam` in Terminal
-3. open any HomeKit app and add the camera to HomeKit (pin for initial setup is `001 02 003`)
-3. view the web ui by entering the url http://localhost:8080
-
-These steps require *git*, *go*, *task* and *ffmpeg* to be installed. On macOS you can install them via Homebrew.
-
-```sh
-brew install git
-brew install go
-brew install go-task/tap/go-task
-brew install ffmpeg
-```
-
-### Raspberry Pi
-
-You can use a camera module or USB camera with a Raspberry Pi to create your own surveillance camera.
-
-<img alt="ELP 1080p" src="_img/elp-1080p.jpg?raw=true" width="280" />
-
-For example the [ELP 1080P USB camera dome](https://de.aliexpress.com/item/4000562253329.html) is great for outdoor use. It is IP66 waterproof and has built-in IR LEDs for night vision. This camera gets you good quality and great performance when running `hkcam` on the latest Raspberry Pi OS.
-
-A cheaper alternative is a [camera module](https://www.raspberrypi.com/products/camera-module-v2/) attached via ribbon cable. You'll have to enable **[Legacy Camera Support](https://www.raspberrypi.com/documentation/accessories/camera.html#libcamera-and-the-legacy-raspicam-camera-stack)** when using a camera module on Raspberry Pi OS. That's why this option is not ideal in my opinion.
-
----
-
-**How to Install on a Raspberry Pi?**
-
-Follow these steps to install `hkcam` and all the required libraries on a Raspberry Pi OS Lite (32-bit).
-
-1. Download and run the Raspberry Pi Imager from https://www.raspberrypi.com/software/
-<img alt="Raspberry Pi Imager" src="_img/rpi-imager.png?raw=true" width="400" />
-
-- Choose OS → Raspberry Pi OS (other) → Raspberry Pi OS Lite (32-bit)
-<img alt="Raspberry Pi Imager" src="_img/rpi-imager-os.png?raw=true" width="400" />
-
-- Insert a sd card into your computer and choose it as the storage
-<img alt="Raspberry Pi Imager" src="_img/rpi-imager-storage.png?raw=true" width="400" />
-
-- Click on the settings icon and **enable SSH**, **Set username and password** and **configure wifi**
-<img alt="Raspberry Pi Imager" src="_img/rpi-imager-settings.png?raw=true" width="400" />
-
-- Write the operating system on the sd card by clicking on **Write**
-<img alt="Raspberry Pi Imager" src="_img/rpi-imager-write.png?raw=true" width="400" />
-
-2. Insert the sd card in your Raspberry Pi
-3. Connect your camera (in my case the ELP 1080P) and power supply
-4. Connect to your Raspberry Pi via SSH (the first boot may take a while, so be patient)
-`ssh pi@raspberrypi.local` (enter your previously configured password)
-
-5. Install ffmpeg
-`apt-get install ffmpeg`
-
-6. Install v4l2loopback
-`apt-get install v4l2loopback-dkms`
-
-- Enable v4l2loopback module at boot by creating a file `/etc/modules-load.d/v4l2loopback.conf` with the content
-
-```
-v4l2loopback
-```
-
-- Specify which loopback file should be created by the module (in our case /dev/video99) by creating the file `/etc/modprobe.d/v4l2loopback.conf` with the content
-```
-options v4l2loopback video_nr=99
-```
-
-- Restart the Raspberry Pi and verify that the file `/dev/video99` exists
-
-7. Install `hkcam`
-
-- Download the latest release from https://github.com/brutella/hkcam/releases
-```
-wget https://github.com/brutella/hkcam/releases/download/v0.1.0/hkcam-v0.1.0_linux_arm.tar.gz
-```
-
-- Extract the archive with `tar -xzf hkcam-v0.1.0_linux_arm.tar.gz`
-- Run `hkcam` by executing the following command
-```
-./hkcam -data_dir=/var/lib/hkcam/data -multi_stream=true -port=8080 -verbose
-```
-
-8. Add the camera to HomeKit
-
-- Launch the Apple Home-app and tap *+* → Add Accessory
-
-- Tap *More Options...*
-
-<img alt="More options" src="_img/home-app-more-options.jpeg?raw=true" width="280" />
-
-- Select *Camera* and confirm that the accessory is uncertified
-
-<img alt="Select Accessory" src="_img/home-app-select-camera.jpeg?raw=true" width="280" />
-
-- Enter the pin `001-02-003` and Continue
-
-<img alt="Select Accessory" src="_img/home-app-pin.jpeg?raw=true" width="280" />
-
-If everything works as expected, you have to configure `hkcam` as a daemon – so that hkcam is automatically run after boot.
-This can be done in different way – [systemd](https://www.raspberrypi.com/documentation/computers/using_linux.html#the-systemd-daemon) is recommended,
-
-
-**How to install with Ansible?**
-
-I've made an [Ansible](http://docs.ansible.com/ansible/index.html) playbook which configures your Raspberry Pi and installs hkcam.
-The following steps require *ansible* to be installed. On macOS you can install it via Homebrew.
-```sh
-brew install ansible
-```
-
----
-
-First install Raspberry Pi OS, as described above.
-Then create ssh key and copy them to the Raspberry Pi.
-
-```sh
-ssh-keygen
-ssh-copy-id pi@raspberrypi.local
-```
-
-After that you can execute the playbook with the following command.
-
-```sh
-cd ansible && ansible-playbook rpi.yml -i hosts
-```
-
-Once the command finishes, your camera can be added to HomeKit.
+To be done
 
 ## Multistream
 
@@ -164,50 +27,8 @@ If a second device wants to view the stream, the Apple Home app shows
 
 `hkcam` allows multiple devices to view the same stream by setting the option `-multi_stream=true`. That's neat.
 
-## Persistent Snapshots
 
-In addition to video streaming, `hkcam` supports [Persistent Snapshots](/SNAPSHOTS.md).
-*Persistent Snapshots* is a way to take snapshots of the camera and store them on disk.
-You can then access them via HomeKit.
 
-*Persistent Snapshots* are currently supported by [Home+](https://hochgatterer.me/home),
-as you can see from the following screenshots.
-
-<img alt="Live streaming" src="_img/homeplus-stream.png?raw=true" width="280" />
-<img alt="Snapshots" src="_img/homeplus-snapshots.png?raw=true" width="280" />
-
-Taking snapshots in automations is also supported.
-
-<img alt="Automation" src="_img/homeplus-automation.jpeg?raw=true" width="280" />
-
-## Web Interface
-
-When running `hkcam` at a specific port (by specifying `-port=...`), you can access the web interface at the url http://{ip-address}:{port} with a browser.
-The web interface shows the recent snapshot and lets you install updates.
-
-<img alt="Web Interface" src="_img/web-interface.png?raw=true" width="400" />
-
-## Raspberry Pi Zero W
-
-I do get kernel panics when running hkcam with an ELP 1080P USB camera.
-Updating `/boot/config.txt` with the following changes resolve those kernel panics.
-
-```
-arm_freq=800
-arm_freq_max=900
-arm_freq_min=700
-```
-
-## Raspberry Pi Zero W Enclosure
-
-<img alt="Desk mount" src="_img/enclosure-desk.jpg?raw=true" width="320" />
-<img alt="Wall mount" src="_img/enclosure-wall.jpg?raw=true" width="320" />
-
-I've also designed an enclosure for the Raspberry Pi Zero W and standard camera module.
-You can use a stand to put the camera on a desk, or combine it with brackets of the [Articulating Raspberry Pi Camera Mount](https://www.prusaprinters.org/prints/3407-articulating-raspberry-pi-camera-mount-for-prusa-m) to mount it on a wall.
-The 3D-printed parts are available as STL files [here](https://github.com/brutella/hkcam/tree/master/enclosure).
-
-This enclosure is not waterproof and should not be used outside. Instead, you should use an [ELP 1080P camera](https://de.aliexpress.com/item/4000562253329.html) and connect it via USB to a Raspberry Pi.
 
 <!-- #### Pre-configured Raspbian  Image
 
@@ -356,17 +177,6 @@ exec hkcam --data_dir=/var/lib/hkcam/data --verbose=true
 The transport port is random. It is assigned by the OS. You can set a port using the ```port``` flag.
 -->
 
-# Contact
-
-Matthias Hochgatterer
-
-Website: [http://hochgatterer.me](http://hochgatterer.me)
-
-Github: [https://github.com/brutella](https://github.com/brutella)
-
-Twitter: [https://twitter.com/brutella](https://twitter.com/brutella)
-
-
 # License
 
-`hkcam` is available under the Apache License 2.0 license. See the LICENSE file for more info.
+`hkcam-minimal` is available under the Apache License 2.0 license. See the LICENSE file for more info.

@@ -5,26 +5,26 @@ import (
 	"github.com/brutella/hap/accessory"
 	"github.com/brutella/hap/log"
 	"github.com/brutella/hkcam"
-	"github.com/brutella/hkcam/api"
-	"github.com/brutella/hkcam/app"
+	//"github.com/brutella/hkcam/api"
+	//"github.com/brutella/hkcam/app"
 	"github.com/brutella/hkcam/ffmpeg"
-	"github.com/brutella/hkcam/html"
-	"github.com/unrolled/render"
+	//"github.com/brutella/hkcam/html"
+	//"github.com/unrolled/render"
 
-	"bytes"
+	//"bytes"
 	"context"
-	"encoding/json"
+
 	"flag"
 	"fmt"
-	"html/template"
-	"image"
-	"image/jpeg"
-	"io/ioutil"
-	"net/http"
+	//"html/template"
+
+	//"image/jpeg"
+
+	//"net/http"
 	"os"
 	"os/signal"
-	"path/filepath"
-	"runtime"
+	//"path/filepath"
+	//"runtime"
 	"syscall"
 	"time"
 )
@@ -46,29 +46,11 @@ const (
 
 func main() {
 
-	// Platform dependent flags
-	var inputDevice *string
-	var inputFilename *string
-	var loopbackFilename *string
-	var h264Encoder *string
-	var h264Decoder *string
-
-	if runtime.GOOS == "linux" {
-		inputDevice = flag.String("input_device", "v4l2", "video input device")
-		inputFilename = flag.String("input_filename", "/dev/video0", "video input device filename")
-		loopbackFilename = flag.String("loopback_filename", "/dev/video99", "video loopback device filename")
-		h264Decoder = flag.String("h264_decoder", "", "h264 video decoder")
-		h264Encoder = flag.String("h264_encoder", "h264_v4l2m2m", "h264 video encoder")
-	} else if runtime.GOOS == "darwin" { // macOS
-		inputDevice = flag.String("input_device", "avfoundation", "video input device")
-		inputFilename = flag.String("input_filename", "default", "video input device filename")
-		// loopback is not needed on macOS because avfoundation provides multi-access to the camera
-		loopbackFilename = flag.String("loopback_filename", "", "video loopback device filename")
-		h264Decoder = flag.String("h264_decoder", "", "h264 video decoder")
-		h264Encoder = flag.String("h264_encoder", "h264_videotoolbox", "h264 video encoder")
-	} else {
-		log.Info.Fatalf("%s platform is not supported", runtime.GOOS)
-	}
+	var inputDevice *string = flag.String("input_device", "v4l2", "video input device")
+	var inputFilename *string = flag.String("input_filename", "/dev/video0", "video input device filename")
+	var loopbackFilename *string = flag.String("loopback_filename", "/dev/video99", "video loopback device filename")
+	var h264Encoder *string = flag.String("h264_decoder", "", "h264 video decoder")
+	var h264Decoder *string = flag.String("h264_encoder", "h264_v4l2m2m", "h264 video encoder")
 
 	var minVideoBitrate *int = flag.Int("min_video_bitrate", 0, "minimum video bit rate in kbps")
 	var multiStream *bool = flag.Bool("multi_stream", false, "Allow multiple clients to view the stream simultaneously")
@@ -89,7 +71,7 @@ func main() {
 		log.Info.Fatal(err)
 	}
 
-	log.Info.Printf("version %s (built at %s)\n", Version, Date)
+	log.Info.Printf("version %s (built at %s)\n", Version, buildDate, Date)
 
 	switchInfo := accessory.Info{Name: "Camera", Firmware: Version, Manufacturer: "Matthias Hochgatterer"}
 	cam := accessory.NewCamera(switchInfo)
@@ -104,14 +86,8 @@ func main() {
 		MultiStream:      *multiStream,
 	}
 
-	ffmpeg := hkcam.SetupFFMPEGStreaming(cam, cfg)
-
-	// Add a custom camera control service to record snapshots
-	cc := hkcam.NewCameraControl()
-	cam.Control.AddC(cc.Assets.C)
-	cam.Control.AddC(cc.GetAsset.C)
-	cam.Control.AddC(cc.DeleteAssets.C)
-	cam.Control.AddC(cc.TakeSnapshot.C)
+	//ffmpeg := hkcam.SetupFFMPEGStreaming(cam, cfg)
+	hkcam.SetupFFMPEGStreaming(cam, cfg)
 
 	store := hap.NewFsStore(*dataDir)
 	s, err := hap.NewServer(store, cam.A)
@@ -121,69 +97,7 @@ func main() {
 
 	s.Pin = *pin
 	s.Addr = fmt.Sprintf(":%s", *port)
-
-	s.ServeMux().HandleFunc("/resource", func(res http.ResponseWriter, req *http.Request) {
-		if !s.IsAuthorized(req) {
-			hap.JsonError(res, hap.JsonStatusInsufficientPrivileges)
-			return
-		}
-
-		if req.Method != http.MethodPost {
-			res.WriteHeader(http.StatusBadRequest)
-			return
-		}
-
-		body, err := ioutil.ReadAll(req.Body)
-		if err != nil {
-			log.Info.Println(err)
-			res.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-
-		r := struct {
-			Type   string `json:"resource-type"`
-			Width  uint   `json:"image-width"`
-			Height uint   `json:"image-height"`
-		}{}
-
-		err = json.Unmarshal(body, &r)
-		if err != nil {
-			log.Info.Println(err)
-			res.WriteHeader(http.StatusBadRequest)
-			return
-		}
-
-		log.Debug.Printf("%+v\n", r)
-
-		switch r.Type {
-		case "image":
-			b, err := snapshot(r.Width, r.Height, ffmpeg)
-			if err != nil {
-				log.Info.Println(err)
-				res.WriteHeader(http.StatusInternalServerError)
-				return
-			}
-
-			res.Header().Set("Content-Type", "image/jpeg")
-			wr := hap.NewChunkedWriter(res, 2048)
-			wr.Write(b)
-		default:
-			log.Info.Printf("unsupported resource request \"%s\"\n", r.Type)
-			res.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-	})
-
-	cc.SetupWithDir(*dataDir)
-	cc.CameraSnapshotReq = func(width, height uint) (*image.Image, error) {
-		snapshot, err := ffmpeg.Snapshot(width, height)
-		if err != nil {
-			return nil, err
-		}
-
-		return &snapshot.Image, nil
-	}
-
+/*
 	appl := &app.App{
 		BuildMode: BuildMode,
 		BuildDate: buildDate,
@@ -226,7 +140,7 @@ func main() {
 	s.ServeMux().HandleFunc("/static/*", func(w http.ResponseWriter, r *http.Request) {
 		staticFs.ServeHTTP(w, r)
 	})
-
+*/
 	c := make(chan os.Signal)
 	signal.Notify(c, os.Interrupt)
 	signal.Notify(c, syscall.SIGTERM)
@@ -246,22 +160,7 @@ func main() {
 	}
 }
 
-func snapshot(width, height uint, ffmpeg ffmpeg.FFMPEG) ([]byte, error) {
-	log.Debug.Printf("snapshot %dw x %dh\n", width, height)
-
-	snapshot, err := ffmpeg.Snapshot(width, height)
-	if err != nil {
-		return nil, fmt.Errorf("snapshot: %v", err)
-	}
-
-	buf := new(bytes.Buffer)
-	if err := jpeg.Encode(buf, snapshot.Image, nil); err != nil {
-		return nil, fmt.Errorf("encode: %v", err)
-	}
-
-	return buf.Bytes(), nil
-}
-
+/*
 // embedFS serves files
 type embedFS struct {
 }
@@ -281,3 +180,4 @@ func (embedFS) Walk(root string, walkFn filepath.WalkFunc) error {
 func (embedFS) ReadFile(filename string) ([]byte, error) {
 	return FSByte(false, filename)
 }
+*/

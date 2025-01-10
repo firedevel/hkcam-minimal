@@ -1,6 +1,7 @@
-version: '2'
+version: '3'
 
 # expansions: 3
+# To be done
 
 vars:
     PWD:
@@ -23,38 +24,20 @@ tasks:
     lint:
         cmds:
             - golangci-lint run
-    build-fs:
-        cmds:
-            - go run github.com/mjibson/esc -o cmd/hkcam/fs.go -ignore ".*\.go" html static
     hkcam:
         cmds:
-            - task: build-fs
-            - "go build -o {{ .BUILD_DIR }}/hkcam -ldflags {{ .LDFLAGS }} cmd/hkcam/main.go cmd/hkcam/fs.go"
+            - "go build -o {{ .BUILD_DIR }}/hkcam -ldflags {{ .LDFLAGS }} cmd/hkcam/main.go"
             - "{{ .BUILD_DIR }}/hkcam --verbose --port={{ .PORT }} --data_dir=cmd/hkcam/db"
         vars:
             LDFLAGS: "\"-X main.Version={{ .VERSION }} -X main.Date={{ .DATE }}\""
             PORT: '{{ default "8080" .PORT }}'
         sources:
-            - static/**/*
-            - cmd/hkcam/main.go
-            - api/*.go
-            - app/*.go
-            - html/**/*
             - Taskfile.yml
     pack:
         cmds:
-            - task: build-fs
             # Raspberry Pi
             - "GOOS=linux GOARCH=arm GOARM=6 go build -o {{ .BUILD_DIR }}/{{ .PACKAGE_RPI }}/{{ .BINARY }} -ldflags {{ .LDFLAGS }} cmd/hkcam/main.go cmd/hkcam/fs.go"
-            # Linux
-            - "GOOS=linux GOARCH=amd64 go build -o {{ .BUILD_DIR }}/{{ .PACKAGE_LINUX_64 }}/{{ .BINARY }} -ldflags {{ .LDFLAGS }} cmd/hkcam/main.go cmd/hkcam/fs.go"
-            # Linux
-            - "GOOS=linux GOARCH=386 go build -o {{ .BUILD_DIR }}/{{ .PACKAGE_LINUX_32 }}/{{ .BINARY }} -ldflags {{ .LDFLAGS }} cmd/hkcam/main.go cmd/hkcam/fs.go"
-            # Intel Mac
-            - "GOOS=darwin GOARCH=amd64 go build -o {{ .BUILD_DIR }}/{{ .PACKAGE_INTEL_MAC }}/{{ .BINARY }} -ldflags {{ .LDFLAGS }} cmd/hkcam/main.go cmd/hkcam/fs.go"
-            # M1 Mac
-            - "GOOS=darwin GOARCH=arm64 go build -o {{ .BUILD_DIR }}/{{ .PACKAGE_M1_MAC }}/{{ .BINARY }} -ldflags {{ .LDFLAGS }} cmd/hkcam/main.go cmd/hkcam/fs.go"
-            # pack
+
             - "tar -cvzf {{ .PACKAGE_RPI }}.tar.gz -C {{ .BUILD_DIR }}/{{ .PACKAGE_RPI }} {{ .BINARY }}"
             - "tar -cvzf {{ .PACKAGE_LINUX_64 }}.tar.gz -C {{ .BUILD_DIR }}/{{ .PACKAGE_LINUX_64 }} {{ .BINARY }}"
             - "tar -cvzf {{ .PACKAGE_LINUX_32 }}.tar.gz -C {{ .BUILD_DIR }}/{{ .PACKAGE_LINUX_32 }} {{ .BINARY }}"
@@ -63,8 +46,4 @@ tasks:
         vars:
             BINARY: hkcam
             PACKAGE_RPI: "{{ .BINARY }}-{{ .VERSION }}_linux_arm"
-            PACKAGE_LINUX_64: "{{ .BINARY }}-{{ .VERSION }}_linux_amd64"
-            PACKAGE_LINUX_32: "{{ .BINARY }}-{{ .VERSION }}_linux_386"
-            PACKAGE_INTEL_MAC: "{{ .BINARY }}-{{ .VERSION }}_darwin_amd64"
-            PACKAGE_M1_MAC: "{{ .BINARY }}-{{ .VERSION }}_darwin_arm64"
             LDFLAGS: "\"-X main.Version={{ .VERSION }} -X main.Date={{ .DATE }}\""

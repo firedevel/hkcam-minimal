@@ -1,4 +1,4 @@
-// Package ffmpeg lets you access the camera via ffmpeg to stream video and to create snapshots.
+// Package ffmpeg lets you access the camera via ffmpeg to stream video.
 //
 // This package requires the `ffmpeg` command line tool to be installed. Install by running
 // - `apt-get install ffmpeg` on linux

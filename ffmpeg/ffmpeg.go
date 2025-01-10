@@ -22,8 +22,8 @@ type FFMPEG interface {
 	Resume(StreamID)
 	ActiveStreams() int
 	Reconfigure(StreamID, rtp.VideoParameters, rtp.AudioParameters) error
-	Snapshot(width, height uint) (*Snapshot, error)
-	RecentSnapshot(width, height uint) *Snapshot
+	//Snapshot(width, height uint) (*Snapshot, error)
+	//RecentSnapshot(width, height uint) *Snapshot
 }
 
 var Stdout = ioutil.Discard
@@ -40,7 +40,7 @@ type ffmpeg struct {
 	loop     *loopback
 	mutex    *sync.Mutex
 	streams  map[StreamID]*stream
-	snapshot *Snapshot
+	//snapshot *Snapshot
 }
 
 // New returns a new ffmpeg handle to start and stop video streams and to make snapshots.
@@ -64,6 +64,7 @@ func (f *ffmpeg) PrepareNewStream(req rtp.SetupEndpoints, resp rtp.SetupEndpoint
 	defer f.mutex.Unlock()
 
 	id := StreamID(req.SessionId)
+	fmt.Sprintf("======STREAM:%s,%s", req, resp)
 	s := &stream{f.videoInputDevice(), f.videoInputFilename(), f.cfg.H264Decoder, f.cfg.H264Encoder, f.cfg.MinVideoBitrate, req, resp, nil}
 	f.streams[id] = s
 	return id
@@ -167,7 +168,7 @@ func (f *ffmpeg) startLoopback() {
 		}
 	}
 }
-
+/*
 func (f *ffmpeg) RecentSnapshot(width, height uint) *Snapshot {
 	f.mutex.Lock()
 	defer f.mutex.Unlock()
@@ -198,7 +199,7 @@ func (f *ffmpeg) Snapshot(width, height uint) (*Snapshot, error) {
 
 	return shot, err
 }
-
+*/
 func (f *ffmpeg) videoInputDevice() string {
 	return f.cfg.InputDevice
 }
